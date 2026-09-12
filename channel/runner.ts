@@ -33,6 +33,15 @@ type PolicyResponse = {
   props: DisclosureDecisionProps;
 };
 
+type BrokerReplyResponse = { message: string };
+
+function parseBrokerReply(text: string): { requestId: string; approved: boolean } | null {
+  const match = /(?:^|\s)(approve|deny)\s+([a-f0-9]{8})\s*$/i.exec(text);
+  return match
+    ? { requestId: match[2], approved: match[1].toLowerCase() === "approve" }
+    : null;
+}
+
 /** Direct Slack turns are keyed as `<channel id>::<root thread timestamp>`.
  * Managed Intelligence supplies an opaque UUID; policy_api resolves that to
  * its real Slack channel before building the venue. */
@@ -86,6 +95,17 @@ async function requestDecision(
   return payload as PolicyResponse;
 }
 
+async function recordBrokerReply(userId: string, requestId: string, approved: boolean): Promise<BrokerReplyResponse> {
+  const apiUrl = required("POLICY_API_URL").replace(/\/$/, "");
+  const response = await fetch(`${apiUrl}/broker/respond`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ request_id: requestId, responder_id: userId, approved }),
+  });
+  if (!response.ok) throw new Error(`Broker API returned HTTP ${response.status}`);
+  return (await response.json()) as BrokerReplyResponse;
+}
+
 const channel = createChannel({
   name: required("CHANNEL_CODE"),
   identifyUser: "platform",
@@ -93,6 +113,20 @@ const channel = createChannel({
 });
 
 channel.onMention(async ({ thread, message }) => {
+  const brokerReply = parseBrokerReply(message.text);
+  if (message.platform === "slack" && brokerReply) {
+    try {
+      const result = await recordBrokerReply(message.actor.id, brokerReply.requestId, brokerReply.approved);
+      await logRuntime("broker reply recorded via mention");
+      await thread.post(result.message);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "unknown error";
+      await logRuntime(`broker error=${detail}`);
+      await thread.post("I could not record that approval. The disclosure remains held.");
+    }
+    return;
+  }
+
   const context = parseSlackTurnContext(thread.conversationKey);
   await logRuntime(
     `mention platform=${message.platform} context=${context ? "valid" : "invalid"} key=${thread.conversationKey}`,
@@ -111,6 +145,23 @@ channel.onMention(async ({ thread, message }) => {
     console.error(`Policy request failed: ${detail}`);
     await logRuntime(`policy error=${detail}`);
     await thread.post("Need To Know is temporarily unavailable. Please try again shortly.");
+  }
+});
+
+// The owner receives a DM containing this short code.  Keeping the approval
+// text-only makes it reliable on the managed Slack adapter; the API still
+// validates that only the recorded owner can complete it.
+channel.onMessage(async ({ thread, message }) => {
+  if (message.platform !== "slack") return;
+  const brokerReply = parseBrokerReply(message.text);
+  if (!brokerReply) return;
+  try {
+    const result = await recordBrokerReply(message.actor.id, brokerReply.requestId, brokerReply.approved);
+    await thread.post(result.message);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "unknown error";
+    await logRuntime(`broker error=${detail}`);
+    await thread.post("I could not record that approval. The disclosure remains held.");
   }
 });
 
