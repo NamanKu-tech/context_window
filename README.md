@@ -92,7 +92,7 @@ The under-attack arm must have the same leakage rate as the clean hard-and-soft 
 ## Setup
 
 \`\`\`bash
-pip install openai pydantic python-dotenv matplotlib python-telegram-bot pyyaml \\
+pip install google-genai pydantic python-dotenv matplotlib python-telegram-bot pyyaml \\
             slack-sdk fastapi uvicorn
 
 # Verify versions against the current CopilotKit Slack quickstart before install.
@@ -113,7 +113,8 @@ Install the app, invite it to all five conversations, and put the same \`xoxb-\`
 SLACK_BOT_TOKEN=xoxb-...
 CHANNEL_CODE=...
 CPK_INTELLIGENCE_API_KEY=...
-OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-2.5-flash  # optional; this is the default
 POLICY_API_URL=http://localhost:8000
 PORT=3000
 \`\`\`
