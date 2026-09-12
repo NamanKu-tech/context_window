@@ -15,45 +15,30 @@ behaving.
 """
 
 from context_window.contracts import Candidate, Decision, Venue
-from context_window.policy import decide
+from context_window.policy import decide, _one_line
 
 
-class _FakeMessage:
+class _FakeResponse:
     def __init__(self, decision: Decision) -> None:
         self.parsed = decision
 
 
-class _FakeChoice:
-    def __init__(self, decision: Decision) -> None:
-        self.message = _FakeMessage(decision)
-
-
-class _FakeParsedCompletion:
-    def __init__(self, decision: Decision) -> None:
-        self.choices = [_FakeChoice(decision)]
-
-
-class _FakeCompletions:
+class _FakeModels:
     def __init__(self, decision: Decision) -> None:
         self._decision = decision
         self.calls = 0
 
-    def parse(self, **_kwargs: object) -> _FakeParsedCompletion:
+    def generate_content(self, **_kwargs: object) -> _FakeResponse:
         self.calls += 1
-        return _FakeParsedCompletion(self._decision)
-
-
-class _FakeChat:
-    def __init__(self, decision: Decision) -> None:
-        self.completions = _FakeCompletions(decision)
+        return _FakeResponse(self._decision)
 
 
 class _FakeClient:
-    """Stands in for `openai.OpenAI()` — same `.chat.completions.parse()`
+    """Stands in for `genai.Client()` — same `.models.generate_content()`
     shape, no network, no API key required."""
 
     def __init__(self, decision: Decision) -> None:
-        self.chat = _FakeChat(decision)
+        self.models = _FakeModels(decision)
 
 
 def test_fixture1_leadership_fact_asked_in_general_brokers() -> None:
@@ -104,7 +89,55 @@ def test_fixture2_general_fact_asked_in_general_allows() -> None:
     result = decide("did the deploy go out?", general, [mundane_fact], client=client)
 
     assert result.action == "allow"
-    assert client.chat.completions.calls == 1
+    assert client.models.calls == 1
+
+
+def test_allow_with_null_answer_falls_back_to_top_candidate_text() -> None:
+    """The model can return action='allow' with answer=None — seen for
+    real against the live Gemini call. decide() must not let that reach
+    the stage silent: fall back to the top surviving candidate's own
+    text, deterministically, no second model call."""
+    mundane_fact = Candidate(
+        message_id="m2",
+        text="deploy went out fine, lunch is at noon",
+        author_id="rahul",
+        source_channel_id="general",
+        source_audience={"dana", "sam", "rahul", "priya"},
+        confidential_marker=False,
+    )
+    general = Venue(
+        channel_id="general",
+        channel_name="#general",
+        is_dm=False,
+        audience={"dana", "sam", "rahul", "priya"},
+    )
+    null_answer_decision = Decision(action="allow", answer=None, reason="Fine to share.")
+    client = _FakeClient(null_answer_decision)
+
+    result = decide("did the deploy go out?", general, [mundane_fact], client=client)
+
+    assert result.action == "allow"
+    assert result.answer == mundane_fact.text
+    assert client.models.calls == 1  # no retry, no second call
+
+
+def test_one_line_truncates_paragraph_at_last_full_word_no_append() -> None:
+    """SPEC §4: reason is one line, shown verbatim. A 60-word model
+    paragraph must never reach the screen — hard guard, no ellipsis."""
+    paragraph = (
+        "This information is highly sensitive and touches on a personnel "
+        "matter that has not yet been formally communicated to the person "
+        "it concerns, so sharing it here risks real harm before that "
+        "conversation happens through the proper channel."
+    )
+    assert len(paragraph) > 140
+
+    result = _one_line(paragraph)
+
+    assert len(result) <= 140
+    assert not result.endswith(("...", "…"))  # nothing appended
+    assert paragraph.startswith(result)  # truncated, not rewritten
+    assert paragraph[len(result) : len(result) + 1] in (" ", "")  # cut on a word boundary
 
 
 def test_fixture3_confidential_fact_in_subset_dm_brokers_even_though_hard_gate_passes() -> None:
@@ -144,4 +177,4 @@ def test_fixture3_confidential_fact_in_subset_dm_brokers_even_though_hard_gate_p
 
     assert result.action == "broker"
     assert result.broker_owner_id == "sam"
-    assert client.chat.completions.calls == 1  # the LLM call still happened
+    assert client.models.calls == 1  # the LLM call still happened
