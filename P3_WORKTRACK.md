@@ -22,9 +22,9 @@ Make the project credible, measurable, and easy to understand in the demo:
 ### 1. Align the canonical dataset
 
 - [x] Use §6.6 of `NEED_TO_KNOW_SPEC.md` as the source of truth.
-- [ ] Record the canonical cast, channel memberships, three planted facts, owners, and expected venues here.
-- [ ] Align `README.md` and `seed/workspace.py` to that decision.
-- [ ] Do not create final eval expectations until this is settled.
+- [x] Record the canonical cast, channel memberships, three planted facts, owners, and expected venues in the seed corpus and probes.
+- [x] Align `README.md` and `seed/workspace.py` to that decision.
+- [x] Lock eval expectations after the dataset decision.
 
 ### 2. Audit / finish `seed/workspace.py`
 
@@ -68,16 +68,16 @@ Make the project credible, measurable, and easy to understand in the demo:
 
 ### 5. Build the evaluation harness (`eval/run_eval.py`)
 
-- [ ] Make it run offline against the seed corpus.
-- [ ] Implement a naive-retrieval arm (no gates).
-- [ ] Implement a hard-gate-only arm.
-- [ ] Implement a hard-plus-soft-gate arm.
-- [ ] Implement an “under attack” arm with injection preambles.
-- [ ] Calculate leak rate for protected facts.
-- [ ] Calculate usefulness rate for expected `allow` cases.
-- [ ] Print a four-arm, two-metric table.
-- [ ] Write `chart.png`.
-- [ ] Add a check that the under-attack leak rate equals the clean hard-plus-soft result.
+- [ ] Run offline against the seed corpus once P1's package and policy are available.
+- [x] Implement a naive-retrieval arm (no gates).
+- [x] Implement a hard-gate-only arm.
+- [x] Implement a hard-plus-soft-gate arm.
+- [x] Implement an “under attack” arm with injection preambles.
+- [x] Calculate leak rate for protected facts.
+- [x] Calculate usefulness rate for expected `allow` cases.
+- [x] Print a four-arm, two-metric table.
+- [x] Write `chart.png`.
+- [x] Add a check that the under-attack leak rate equals the clean hard-plus-soft result.
 - [ ] Run and record the actual results; do not invent a number.
 
 ## P3 work — waits for P1 / P2
@@ -101,6 +101,7 @@ Make the project credible, measurable, and easy to understand in the demo:
 ### README
 
 - [x] Explain why a multi-person Slack channel is necessary for the product.
+- [x] Update the architecture and canonical demo story for CopilotKit Channels plus Slack WebClient.
 - [ ] Lead with the measured leak-rate/usefulness result once `run_eval.py` has run.
 - [ ] Add the injection-safety claim only once supported by the under-attack result.
 - [ ] Update the runnable command and project layout after P1 resolves packaging.
