@@ -19,7 +19,7 @@ import {
 export type AudienceMember = {
   id: string;
   name: string;
-  avatarUrl: string | null;
+  avatarUrl: string;
 };
 
 export type DecisionAction = "allow" | "redact" | "broker";
@@ -36,7 +36,6 @@ export type DisclosureDecisionProps = {
   reason: string;
   answer?: string | null;
   redactedAnswer?: string | null;
-  sourceAudience?: AudienceMember[];
   audience?: AudienceCardProps | null;
 };
 
@@ -65,7 +64,7 @@ function AvatarRow({ audience, label }: { audience: AudienceMember[]; label: str
       <Section>{label + " · " + audience.length + " " + countLabel}</Section>
       <Context>
         {visible.map((member) => (
-          member.avatarUrl ? <Image key={member.id} url={member.avatarUrl} alt={member.name} /> : member.name
+          member.avatarUrl ? <Image url={member.avatarUrl} alt={member.name} /> : member.name
         ))}
         {remainder > 0 ? "+" + remainder : null}
       </Context>
