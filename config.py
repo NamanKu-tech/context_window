@@ -58,6 +58,7 @@ def _generate_with_gemini(
             system_instruction=system_instruction,
             response_mime_type="application/json",
             response_schema=response_model,
+            temperature=0,
         ),
     )
     if isinstance(response.parsed, response_model):
@@ -89,6 +90,7 @@ def _generate_with_openrouter(
                 "schema": response_model.model_json_schema(),
             },
         },
+        temperature=0,
     )
     content = completion.choices[0].message.content
     if not content:
