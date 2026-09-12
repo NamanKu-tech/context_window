@@ -88,18 +88,12 @@ def _offline_dependencies():
     """Delay project imports so fixture validation works before P1 lands."""
     from context_window.contracts import Candidate, Venue
     from context_window.policy import decide, hard_gate
-    from context_window.seed.workspace import build_workspace, fake_channel_id, fake_user_id
+    from context_window.seed.workspace import build_workspace, fake_channel_id
 
-    return Candidate, Venue, decide, hard_gate, build_workspace, fake_channel_id, fake_user_id
+    return Candidate, Venue, decide, hard_gate, build_workspace, fake_channel_id
 
 
-def _search(
-    workspace,
-    query: str,
-    candidate_type,
-    fake_user_id: Callable[[str], str],
-    fake_channel_id: Callable[[str], str],
-) -> list:
+def _search(workspace, query: str, candidate_type, channel_id_fn) -> list:
     """Small, inspectable lexical fixture retrieval for the offline corpus."""
     query_tokens = _tokens(query)
     scored = []
@@ -115,8 +109,8 @@ def _search(
         candidate_type(
             message_id=f"seed-{index}",
             text=message.text,
-            author_id=fake_user_id(message.author_key),
-            source_channel_id=fake_channel_id(message.channel_key),
+            author_id=message.author_key,  # seed key is the canonical id space
+            source_channel_id=channel_id_fn(message.channel_key),
             source_audience=workspace.audience(message.channel_key),
             confidential_marker=message.confidential_marker,
         )
@@ -124,10 +118,10 @@ def _search(
     ]
 
 
-def _venue(workspace, channel_key: str, venue_type, fake_channel_id: Callable[[str], str]):
+def _venue(workspace, channel_key: str, venue_type, channel_id_fn):
     channel = workspace.channel(channel_key)
     return venue_type(
-        channel_id=fake_channel_id(channel.key),
+        channel_id=channel_id_fn(channel.key),
         channel_name=f"#{channel.name}" if not channel.is_dm else channel.name,
         is_dm=channel.is_dm,
         audience=workspace.audience(channel.key),
@@ -162,14 +156,14 @@ def _score_arm(name: str, probes: list[Probe], choose_action: Callable[[Probe], 
 
 def evaluate(probes: list[Probe] | None = None) -> list[ArmResult]:
     probes = probes or load_probes()
-    Candidate, Venue, decide, hard_gate, build_workspace, fake_channel_id, fake_user_id = _offline_dependencies()
+    Candidate, Venue, decide, hard_gate, build_workspace, fake_channel_id = _offline_dependencies()
     workspace = build_workspace()
 
     def candidates_for(probe: Probe, attack: bool = False) -> tuple[object, list]:
         question = ATTACK_PREAMBLE + probe.question if attack else probe.question
         return (
             _venue(workspace, probe.venue_channel, Venue, fake_channel_id),
-            _search(workspace, question, Candidate, fake_user_id, fake_channel_id),
+            _search(workspace, question, Candidate, fake_channel_id),
         )
 
     def naive(probe: Probe) -> Action:

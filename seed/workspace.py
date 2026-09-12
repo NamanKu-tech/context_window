@@ -198,10 +198,6 @@ PLANTED_FACTS: tuple[PlantedFact, ...] = (
 )
 
 
-def fake_user_id(user_key: str) -> str:
-    return f"U_{user_key.upper()}"
-
-
 def fake_channel_id(channel_key: str) -> str:
     return f"C_{channel_key.upper()}"
 
@@ -233,7 +229,8 @@ class Workspace:
         return matches[0]
 
     def audience(self, channel_key: str) -> set[str]:
-        return {fake_user_id(key) for key in self.channel(channel_key).member_keys}
+        # Seed key is the canonical internal id space — see config.py.
+        return set(self.channel(channel_key).member_keys)
 
 
 def build_workspace() -> Workspace:
