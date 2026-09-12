@@ -26,6 +26,9 @@ CONFIDENTIAL_MARKERS: tuple[str, ...] = (
     "dont spread",
     "don't repeat",
     "dont repeat",
+    "don't spread",
+    "dont spread",
+    "do not spread",
     "keep this quiet",
     "keep this to yourself",
     "keep it in here",
@@ -37,6 +40,13 @@ CONFIDENTIAL_MARKERS: tuple[str, ...] = (
     "hold this for now",
 )
 
+#: Curly (typographic) apostrophes/quotes normalised to their straight ASCII
+#: form before matching. SPEC's own fixture text ("don't spread it") and any
+#: text a person pastes from Slack/a doc may use either — the marker list is
+#: written in straight quotes, so without this a real curly apostrophe would
+#: silently fail to match.
+_QUOTE_NORMALISATION = str.maketrans({"’": "'", "‘": "'", "“": '"', "”": '"'})
+
 
 def has_confidential_marker(text: str) -> bool:
     """True if ``text`` carries one of the confidentiality phrases.
@@ -44,7 +54,7 @@ def has_confidential_marker(text: str) -> bool:
     Deliberately dumb: lowercase substring containment, no model, no regex
     cleverness. If it misses a phrase, add the phrase.
     """
-    lowered = text.lower()
+    lowered = text.translate(_QUOTE_NORMALISATION).lower()
     return any(marker in lowered for marker in CONFIDENTIAL_MARKERS)
 
 

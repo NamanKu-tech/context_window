@@ -10,6 +10,8 @@ call, not at import time.
 Run `python -m context_window.config` as an all-day smoke test: prints
 the model name, makes one trivial structured call, and prints OK or the
 exact error. Keep it to ten seconds — no retries.
+
+Internal id space is the seed key ("dana", "sam", ...). `store.py` translates real Slack ids into it at ingest.
 """
 
 from __future__ import annotations
