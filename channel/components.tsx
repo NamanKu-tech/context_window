@@ -138,4 +138,4 @@ export function ConsentCard(props: ConsentCardProps) {
 }
 
 /** The only components P2 may register with the Channel runner. */
-export const POLICY_COMPONENTS = [AudienceCard, DisclosureDecision, ConsentCard] as const;
+export const POLICY_COMPONENTS = [AudienceCard, DisclosureDecision, ConsentCard];

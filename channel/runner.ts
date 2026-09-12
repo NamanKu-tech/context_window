@@ -1,13 +1,11 @@
 import { createServer } from "node:http";
 
 import { createChannel } from "@copilotkit/channels";
-import { slack } from "@copilotkit/channels/slack";
 import {
   CopilotKitIntelligence,
   CopilotRuntime,
 } from "@copilotkit/runtime/v2";
 import { createCopilotNodeListener } from "@copilotkit/runtime/v2/node";
-
 import { DisclosureDecision, POLICY_COMPONENTS, type DisclosureDecisionProps } from "./components.js";
 
 function required(name: string): string {
@@ -78,14 +76,6 @@ async function requestDecision(
 const channel = createChannel({
   name: required("CHANNEL_CODE"),
   identifyUser: "platform",
-  adapters: [
-    slack({
-      botToken: required("SLACK_BOT_TOKEN"),
-      appToken: required("SLACK_APP_TOKEN"),
-      assistant: false,
-      streaming: "legacy",
-    }),
-  ],
   components: [...POLICY_COMPONENTS],
 });
 
