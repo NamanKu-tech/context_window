@@ -156,6 +156,7 @@ def _soft_gate(
     hard gate. Judges norms the set maths can't see: confidentiality
     markers, purpose, sensitivity. SPEC §2, §6.2 step 3.
     """
+    using_default_client = client is None
     if client is None:
         client = get_client()
 
@@ -172,16 +173,24 @@ def _soft_gate(
         f"{candidate_lines}"
     )
 
-    from google.genai import types as _genai_types
+    # The SDK is only necessary when actually talking to Gemini.  Keeping it
+    # out of the injected-client path lets deterministic policy tests run
+    # without network/provider dependencies.
+    if using_default_client:
+        from google.genai import types as _genai_types
+
+        generation_config: object = _genai_types.GenerateContentConfig(
+            system_instruction=SOFT_GATE_SYSTEM_PROMPT,
+            response_mime_type="application/json",
+            response_schema=Decision,
+        )
+    else:
+        generation_config = None
 
     response = client.models.generate_content(
         model=DEFAULT_MODEL,
         contents=user_prompt,
-        config=_genai_types.GenerateContentConfig(
-            system_instruction=SOFT_GATE_SYSTEM_PROMPT,
-            response_mime_type="application/json",
-            response_schema=Decision,
-        ),
+        config=generation_config,
     )
     parsed = response.parsed
     if not isinstance(parsed, Decision):

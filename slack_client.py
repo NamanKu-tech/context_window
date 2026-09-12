@@ -19,3 +19,8 @@ def get_slack_client() -> WebClient:
     if not token:
         raise RuntimeError("Missing SLACK_BOT_TOKEN in .env")
     return WebClient(token=token)
+
+
+def get_client() -> WebClient:
+    """Compatibility name for the P1 policy API boundary."""
+    return get_slack_client()
