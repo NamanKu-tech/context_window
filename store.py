@@ -92,6 +92,7 @@ def _record_audience(
 
 def ingest(client: WebClient) -> None:
     """Ingest every conversation the bot belongs to and cache its audience once."""
+    bot_user_id = client.auth_test().data.get("user_id")
     with _connect() as connection:
         for page in _pages(
             client.conversations_list,
@@ -109,16 +110,33 @@ def ingest(client: WebClient) -> None:
                 is_dm = bool(channel.get("is_im") or channel.get("is_mpim"))
                 _record_audience(connection, channel_id, channel_name, is_dm, audience)
 
+                # A re-ingest is a fresh snapshot. Clearing this channel first
+                # removes notices that may have been indexed by older builds
+                # and prevents deleted Slack messages from lingering as answers.
+                connection.execute("DELETE FROM messages WHERE channel_id = ?", (channel_id,))
+
                 for history_page in _pages(
                     client.conversations_history,
                     channel=channel_id,
                     limit=200,
                 ):
                     for message in history_page["messages"]:
+                        # Slack emits join/leave/archive and other system notices
+                        # in channel history. They are not conversational facts
+                        # and made broad questions retrieve irrelevant private
+                        # channels, so never place them in the answer index.
+                        if message.get("subtype") or message.get("type", "message") != "message":
+                            continue
                         author_id = message.get("user")
                         text = message.get("text")
                         ts = message.get("ts")
                         if not author_id or not text or not ts:
+                            continue
+                        # A mention is a request to the agent, not a fact the
+                        # agent should later retrieve as an answer. Keeping it
+                        # would make questions echo themselves above the real
+                        # channel message that prompted the answer.
+                        if bot_user_id and text.lstrip().startswith(f"<@{bot_user_id}>"):
                             continue
                         message_id = message.get("client_msg_id") or f"{channel_id}:{ts}"
                         connection.execute("DELETE FROM messages WHERE message_id = ?", (message_id,))

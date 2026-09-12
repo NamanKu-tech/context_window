@@ -11,7 +11,6 @@ import {
   Fields,
   Field,
   Header,
-  Image,
   Message,
   Section,
 } from "@copilotkit/channels/ui";
@@ -62,12 +61,15 @@ function AvatarRow({ audience, label }: { audience: AudienceMember[]; label: str
   return (
     <>
       <Section>{label + " · " + audience.length + " " + countLabel}</Section>
-      <Context>
-        {visible.map((member) => (
-          member.avatarUrl ? <Image url={member.avatarUrl} alt={member.name} /> : member.name
-        ))}
-        {remainder > 0 ? "+" + remainder : null}
-      </Context>
+      {(visible.length > 0 || remainder > 0) && (
+        <Context>
+          {/* Slack Context blocks require non-empty text elements. Names are
+              dependable across adapters; avatar images made Slack reject the
+              entire decision card as invalid_blocks. */}
+          {visible.map((member) => member.name || member.id)}
+          {remainder > 0 ? "+" + remainder : null}
+        </Context>
+      )}
     </>
   );
 }

@@ -43,6 +43,7 @@ except ImportError:
     search = None
 
 app = FastAPI()
+_user_cache: dict[str, dict[str, str]] = {}
 
 
 class DecideRequest(BaseModel):
@@ -63,17 +64,36 @@ class DecideResponse(BaseModel):
 def resolve_users(ids: set[str] | list[str]) -> list[dict[str, str]]:
     """user id -> [{id, name, avatarUrl}, ...], sorted by id.
 
-    `avatarUrl` is `""`, not `None` — TSX's `AudienceMember.avatarUrl` is
-    a required `string`, and `<Image src={null}>` is a live render
-    failure, not just a type complaint. An empty string is a valid
-    string and the safer stand-in until real avatar URLs exist.
-
-    STUB seam: this body is the only thing P2 needs to replace on
-    integration — swap it for a lookup backed by (cached) `users_info`
-    and keep this exact signature/return shape. Nothing else in this
-    file, or in either component, changes.
+    Names and avatars are resolved from Slack once and cached for this
+    process. If Slack profile lookup is temporarily unavailable, retain a
+    safe ID fallback rather than failing a disclosure decision.
     """
-    return [{"id": uid, "name": uid.capitalize(), "avatarUrl": ""} for uid in sorted(ids)]
+    from context_window.slack_client import get_client as get_slack_client
+
+    client = None
+    users: list[dict[str, str]] = []
+    for uid in sorted(ids):
+        if uid not in _user_cache:
+            try:
+                client = client or get_slack_client()
+                user = client.users_info(user=uid).data["user"]
+                profile = user.get("profile") or {}
+                name = (
+                    profile.get("display_name")
+                    or profile.get("real_name")
+                    or user.get("real_name")
+                    or user.get("name")
+                    or uid
+                )
+                _user_cache[uid] = {
+                    "id": uid,
+                    "name": str(name),
+                    "avatarUrl": str(profile.get("image_48") or profile.get("image_72") or ""),
+                }
+            except Exception:  # Profile decoration must never block policy output.
+                _user_cache[uid] = {"id": uid, "name": uid, "avatarUrl": ""}
+        users.append(_user_cache[uid])
+    return users
 
 
 # STUB — owned by P2, delete on integration. Fixed cast + channels from
