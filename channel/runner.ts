@@ -7,6 +7,12 @@ import {
   CopilotRuntime,
 } from "@copilotkit/runtime/v2";
 import { createCopilotNodeListener } from "@copilotkit/runtime/v2/node";
+import { DisclosureDecision, POLICY_COMPONENTS, type DisclosureDecisionProps } from "./components.js";
+
+type DecideResponse = {
+  component: "DisclosureDecision";
+  props: DisclosureDecisionProps;
+};
 
 import { DisclosureDecision, POLICY_COMPONENTS, type DisclosureDecisionProps } from "./components.js";
 
@@ -18,6 +24,7 @@ function required(name: string): string {
   return value;
 }
 
+<<<<<<< Updated upstream
 type SlackTurnContext = {
   channelId: string;
   threadTs: string;
@@ -73,11 +80,30 @@ async function requestDecision(
   }
 
   return payload as PolicyResponse;
+=======
+async function requestDecision(input: {
+  channel_id: string;
+  user_id: string;
+  text: string;
+  thread_ts: string;
+}): Promise<DecideResponse> {
+  const baseUrl = required("POLICY_API_URL").replace(/\/$/, "");
+  const response = await fetch(`${baseUrl}/decide`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    throw new Error(`Policy API returned ${response.status}`);
+  }
+  return (await response.json()) as DecideResponse;
+>>>>>>> Stashed changes
 }
 
 const channel = createChannel({
   name: required("CHANNEL_CODE"),
   identifyUser: "platform",
+<<<<<<< Updated upstream
   adapters: [
     slack({
       botToken: required("SLACK_BOT_TOKEN"),
@@ -103,6 +129,35 @@ channel.onMention(async ({ thread, message }) => {
     const detail = error instanceof Error ? error.message : "unknown error";
     console.error(`Policy request failed: ${detail}`);
     await thread.post("Need To Know is temporarily unavailable. Please try again shortly.");
+=======
+  components: POLICY_COMPONENTS,
+});
+
+channel.onMention(async ({ thread, message }) => {
+  try {
+    console.dir(
+      {
+        decisionRequest: {
+          conversationKey: thread.conversationKey,
+          messageRefId: message.ref.id,
+          userId: message.user?.id ?? message.actor.id,
+        },
+      },
+      { depth: null },
+    );
+    const decision = await requestDecision({
+      // Channels' stable conversation key is the provider conversation id
+      // carried into this typed boundary; the runner performs no Slack reads.
+      channel_id: thread.conversationKey,
+      user_id: message.user?.id ?? message.actor.id,
+      text: message.text,
+      thread_ts: message.ref.id,
+    });
+    await thread.post(DisclosureDecision(decision.props));
+  } catch (error) {
+    console.error("Need to Know decision request failed", error);
+    await thread.post("I could not safely evaluate that request. Please try again.");
+>>>>>>> Stashed changes
   }
 });
 

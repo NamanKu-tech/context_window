@@ -6,4 +6,5 @@ node_modules/
 .pytest_cache/
 .ruff_cache/
 *.db
+.seed_state.json
 .DS_Store

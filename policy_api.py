@@ -140,7 +140,7 @@ def _resolve(req: DecideRequest) -> tuple[Venue, list[Candidate]]:
     if build_venue is not None and search is not None:
         # Real path, once P2 ships store.py + slack_client.py. Not
         # exercised until then.
-        from context_window.slack_client import get_client as get_slack_client
+        from context_window.slack_client import get_slack_client
 
         venue = build_venue(get_slack_client(), req.channel_id)
         candidates = search(req.text)

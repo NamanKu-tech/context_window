@@ -16,7 +16,9 @@ from context_window.markers import has_confidential_marker
 
 
 DB_PATH = Path(os.environ.get("STORE_DB_PATH", Path(__file__).with_name("need_to_know.db")))
+SEED_STATE_PATH = Path(__file__).parent / "seed" / ".seed_state.json"
 _audience_cache: dict[str, set[str]] = {}
+_bot_user_id: str | None = None
 
 
 def _connect() -> sqlite3.Connection:
@@ -61,8 +63,32 @@ def _audience(client: WebClient, channel_id: str) -> set[str]:
         members: set[str] = set()
         for response in _pages(client.conversations_members, channel=channel_id, limit=200):
             members.update(response["members"])
+        bot_user_id = _bot_id(client)
+        # The bot sees every source and venue, but is not a human audience.
+        # Remove it at this single ingestion boundary so it cannot make every
+        # subset comparison fail merely because it is absent from one set.
+        members.discard(bot_user_id)
         _audience_cache[channel_id] = members
     return _audience_cache[channel_id]
+
+
+def _bot_id(client: WebClient) -> str:
+    global _bot_user_id
+    if _bot_user_id is None:
+        _bot_user_id = client.auth_test().data["user_id"]
+    return _bot_user_id
+
+
+def _seed_authors() -> dict[str, str]:
+    """Read the local map produced by `seed.seed_slack`.
+
+    Slack attributes every seeded post to the app even when its display name
+    is customised. This map preserves the fictional author in the project's
+    canonical id space without pretending a bot token can impersonate a user.
+    """
+    if not SEED_STATE_PATH.exists():
+        return {}
+    return json.loads(SEED_STATE_PATH.read_text()).get("authors", {})
 
 
 def _channel_metadata(client: WebClient, channel_id: str) -> tuple[str, bool]:
@@ -92,6 +118,7 @@ def _record_audience(
 
 def ingest(client: WebClient) -> None:
     """Ingest every conversation the bot belongs to and cache its audience once."""
+    seeded_authors = _seed_authors()
     with _connect() as connection:
         for page in _pages(
             client.conversations_list,
@@ -115,12 +142,14 @@ def ingest(client: WebClient) -> None:
                     limit=200,
                 ):
                     for message in history_page["messages"]:
-                        author_id = message.get("user")
                         text = message.get("text")
                         ts = message.get("ts")
-                        if not author_id or not text or not ts:
+                        if not text or not ts:
                             continue
                         message_id = message.get("client_msg_id") or f"{channel_id}:{ts}"
+                        author_id = seeded_authors.get(message_id, message.get("user"))
+                        if not author_id:
+                            continue
                         connection.execute("DELETE FROM messages WHERE message_id = ?", (message_id,))
                         connection.execute(
                             """
