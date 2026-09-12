@@ -22,6 +22,8 @@ CONFIDENTIAL_MARKERS: tuple[str, ...] = (
     "don't share",
     "dont share",
     "do not share",
+    "don't spread",
+    "dont spread",
     "don't repeat",
     "dont repeat",
     "keep this quiet",
