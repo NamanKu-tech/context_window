@@ -5,9 +5,7 @@ in this module knows about Slack, HTTP, CopilotKit, or component names —
 that mapping is `policy_api.py`'s job, a later increment. This file only
 ever sees the three contracts in `contracts.py`.
 
-PROVIDER NOTE — deviates from SPEC §3/§6.2, which name the OpenAI SDK.
-Switched to Gemini (free tier) on explicit instruction, not a silent
-substitution. Structured output uses ``google-genai``'s
+PROVIDER NOTE — Gemini remains the direct fallback provider. Structured output uses ``google-genai``'s
 ``client.models.generate_content(model=..., contents=..., config=
 types.GenerateContentConfig(system_instruction=..., response_mime_type=
 "application/json", response_schema=Decision))`` — confirmed against the
@@ -19,17 +17,17 @@ own description: "First candidate from the parsed response if
 response_schema is provided"). Model id (``gemini-2.5-flash``) confirmed
 against ``client.models.list()`` for this key rather than assumed.
 
-Client and model are a single shared definition in `config.py` (P3's
-`eval/` must hit the exact same one) — `get_client()` there is lazy, so
-importing this module still never requires `GEMINI_API_KEY`. A caller
-may still inject a `client` (tests do) to bypass both.
+Model access is a single shared definition in `config.py` (P3's `eval/`
+must hit the exact same provider selection). It prefers OpenRouter when
+configured and falls back once to Gemini; a caller may still inject a Gemini-
+shaped `client` (tests do) to bypass both.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from context_window.config import DEFAULT_MODEL, get_client
+from context_window.config import DEFAULT_MODEL, generate_structured
 from context_window.contracts import Candidate, Decision, Venue
 
 if TYPE_CHECKING:
@@ -156,10 +154,6 @@ def _soft_gate(
     hard gate. Judges norms the set maths can't see: confidentiality
     markers, purpose, sensitivity. SPEC §2, §6.2 step 3.
     """
-    using_default_client = client is None
-    if client is None:
-        client = get_client()
-
     candidate_lines = "\n".join(
         f"- (id={c.message_id}, author={c.author_id}, "
         f"confidential_marker={c.confidential_marker}): {c.text}"
@@ -173,18 +167,28 @@ def _soft_gate(
         f"{candidate_lines}"
     )
 
-    # The SDK is only necessary when actually talking to Gemini.  Keeping it
-    # out of the injected-client path lets deterministic policy tests run
-    # without network/provider dependencies.
-    if using_default_client:
+    if client is None:
+        try:
+            return generate_structured(SOFT_GATE_SYSTEM_PROMPT, user_prompt, Decision)
+        except Exception:
+            return Decision(
+                action="broker",
+                broker_owner_id=survivors[0].author_id,
+                reason="Could not confidently judge this one. Asking first.",
+            )
+
+    # Tests inject a small fake client and deliberately do not require the
+    # provider SDK.  A real injected Gemini client still receives its normal
+    # structured-output configuration when the SDK is available.
+    try:
         from google.genai import types as _genai_types
 
-        generation_config: object = _genai_types.GenerateContentConfig(
+        generation_config: object | None = _genai_types.GenerateContentConfig(
             system_instruction=SOFT_GATE_SYSTEM_PROMPT,
             response_mime_type="application/json",
             response_schema=Decision,
         )
-    else:
+    except ModuleNotFoundError:
         generation_config = None
 
     response = client.models.generate_content(
