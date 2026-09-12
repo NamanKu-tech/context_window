@@ -13,16 +13,16 @@ Make the project credible, measurable, and easy to understand in the demo:
 ## Current status
 
 - [x] Seed corpus exists in `seed/workspace.py`.
-- [ ] Team chooses the canonical seed-story version before probes are finalized.
+- [x] Canonical seed story is §6.6 of `NEED_TO_KNOW_SPEC.md` (Dana/Sam DM; Priya resigning case).
 - [ ] P1 fixes the package/contracts issue so Python and the offline eval can run.
 - [ ] P2 posts the selected corpus and exposes the real Slack retrieval path.
 
 ## P3 work — can start now
 
-### 1. Decide and document the canonical dataset
+### 1. Align the canonical dataset
 
-- [ ] Ask the team to choose one source of truth: the current seed corpus or §6.6 of `NEED_TO_KNOW_SPEC.md`.
-- [ ] Once agreed, record the canonical cast, channel memberships, three planted facts, owners, and expected venues here.
+- [x] Use §6.6 of `NEED_TO_KNOW_SPEC.md` as the source of truth.
+- [ ] Record the canonical cast, channel memberships, three planted facts, owners, and expected venues here.
 - [ ] Align `README.md` and `seed/workspace.py` to that decision.
 - [ ] Do not create final eval expectations until this is settled.
 
@@ -33,7 +33,9 @@ Make the project credible, measurable, and easy to understand in the demo:
 - [x] Add self-checks for message authorship and planted-fact needles.
 - [ ] Resolve its imports with P1's final package/contract structure.
 - [ ] Verify it runs from the project command specified by the team.
-- [ ] Confirm the corpus contains the three final, agreed demo facts.
+- [ ] Revise the corpus to the required cast: Dana, Sam, Rahul, and Priya.
+- [ ] Revise channels to the required memberships: general (all four), engineering (Dana/Rahul/Priya), leadership (Dana/Sam), hiring (Dana/Sam), and DM Dana↔Sam.
+- [ ] Confirm the three required facts: Atlas slip, senior-eng salary band, and Sam's confidential Priya-resigning message in `#leadership`.
 - [ ] Add the three injection-attempt messages to `#general`.
 
 ### 3. Build constrained Channel UI (`channel/components.tsx`)
@@ -47,8 +49,9 @@ Make the project credible, measurable, and easy to understand in the demo:
 - [ ] Test with 0, 1, 9, 10, and more than 10 people.
 - [ ] Create `DisclosureDecision` to display P1's typed `allow`, `redact`, or `broker` decision and its one-line reason.
 - [ ] Ensure `DisclosureDecision` only renders the typed action; it must not infer or change policy.
-- [ ] Create `ConsentCard` for owner-facing Approve, Deny, and constrained-approval actions.
+- [ ] Define `ConsentCard` props for owner-facing Approve, Deny, and constrained-approval actions.
 - [ ] Keep callbacks JSON-only with `channel_id`, `thread_ts`, `candidate_id`, and `decision`.
+- [ ] Coordinate with P1: Phase 1 sends the consent DM via `surfaces/slack_broker.py` and `WebClient`; do not make the runner responsible for out-of-band DMs.
 - [ ] Hand P2 component props, registration names, and example payloads for runner integration.
 - [ ] Ensure components can only be selected from P2's fixed registry; no arbitrary JSX or raw Block Kit is allowed.
 
@@ -88,9 +91,9 @@ Make the project credible, measurable, and easy to understand in the demo:
 
 ### P2 dependencies
 
-- [ ] Confirm one real Slack message reaches the CopilotKit Channel runner and returns a reply.
+- [ ] Confirm one real Slack message reaches the CopilotKit Channel runner, calls `POST /decide`, and returns a reply.
 - [ ] Post the agreed seed corpus into Slack.
-- [ ] Provide real channel audience data and cached avatar URLs to the component props.
+- [ ] Provide real channel audience data and cached avatar URLs from `WebClient` / `users_info` to the component props.
 - [ ] Register and render the three P3 components only after receiving P1's typed decision.
 
 ## README and demo video
@@ -114,7 +117,7 @@ Make the project credible, measurable, and easy to understand in the demo:
 
 ## Team decisions to resolve before final eval
 
-1. **Canonical dataset:** The present seed/README and §6.6 of the spec describe different casts, memberships, DM participants, and confidential facts. Pick one and align all files before locking probes.
+1. **Canonical dataset:** Resolved. §6.6 of the latest spec is authoritative. The existing seed/README must be aligned to it before probes are finalized.
 2. **Package/contracts:** `types.py` has now been renamed to `contracts.py`, which fixes the standard-library collision. Python tests still cannot import `context_window`, so P1 must finish the package layout and frozen imports before P3 can execute the seed or eval path.
 
 ## Definition of done for P3
