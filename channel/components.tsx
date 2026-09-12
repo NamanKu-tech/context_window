@@ -64,7 +64,7 @@ function AvatarRow({ audience, label }: { audience: AudienceMember[]; label: str
       <Section>{label + " · " + audience.length + " " + countLabel}</Section>
       <Context>
         {visible.map((member) => (
-          <Image key={member.id} src={member.avatarUrl} alt={member.name} />
+          member.avatarUrl ? <Image key={member.id} src={member.avatarUrl} alt={member.name} /> : member.name
         ))}
         {remainder > 0 ? "+" + remainder : null}
       </Context>
