@@ -5,15 +5,20 @@ maps the typed `Decision` onto a component name + JSON-serializable
 props. No gate logic lives here — that's all in `policy.py`, which stays
 free of HTTP, Slack and component names.
 
-Prop contract (P3 builds AudienceCard/DisclosureDecision against this —
-do not add fields):
+Prop contract — conforms to `channel/components.tsx`'s actual declared
+types (source of truth, read directly, not re-derived): P1 conforms to
+P3, not the other way round.
 
-    AudienceCard       -> sourceAudience, venueAudience, ownerName, status
-    DisclosureDecision -> action, reason, answer, sourceAudience
+    DisclosureDecisionProps = { action, reason, answer?, redactedAnswer?, audience? }
+    AudienceCardProps       = { sourceAudience, venueAudience, ownerName, status }
 
-`sourceAudience` is always present, including on `allow` — it's the
-audience of whichever candidate the answer actually came from, shown for
-transparency even when nothing was held.
+`DisclosureDecision` is the *only* component this endpoint ever names —
+TSX already handles all three actions itself and nests `AudienceCard`
+internally (`props.audience`) when `action === "broker"`. Sending
+`"AudienceCard"` directly, as an earlier version of this file did,
+bypassed that nesting and TSX's "Permission needed" header/redact body
+entirely. `audience` is populated only for `broker`/`redact`; omitted
+(`None`) on `allow`, matching the optional `audience?` field.
 
 Venue.audience / Candidate.source_audience are `set[str]` — not
 JSON-serializable and not renderable ("dana" has no avatar). Both are
@@ -51,19 +56,24 @@ class DecideRequest(BaseModel):
 class DecideResponse(BaseModel):
     action: Literal["allow", "redact", "broker"]
     reason: str
-    component: Literal["AudienceCard", "DisclosureDecision"]
+    component: Literal["DisclosureDecision"]
     props: dict[str, Any]
 
 
-def resolve_users(ids: set[str] | list[str]) -> list[dict[str, str | None]]:
+def resolve_users(ids: set[str] | list[str]) -> list[dict[str, str]]:
     """user id -> [{id, name, avatarUrl}, ...], sorted by id.
+
+    `avatarUrl` is `""`, not `None` — TSX's `AudienceMember.avatarUrl` is
+    a required `string`, and `<Image src={null}>` is a live render
+    failure, not just a type complaint. An empty string is a valid
+    string and the safer stand-in until real avatar URLs exist.
 
     STUB seam: this body is the only thing P2 needs to replace on
     integration — swap it for a lookup backed by (cached) `users_info`
     and keep this exact signature/return shape. Nothing else in this
     file, or in either component, changes.
     """
-    return [{"id": uid, "name": uid.capitalize(), "avatarUrl": None} for uid in sorted(ids)]
+    return [{"id": uid, "name": uid.capitalize(), "avatarUrl": ""} for uid in sorted(ids)]
 
 
 # STUB — owned by P2, delete on integration. Fixed cast + channels from
@@ -162,31 +172,30 @@ def _source_candidate(
 def _to_response(
     decision: Decision, venue: Venue, candidates: list[Candidate]
 ) -> DecideResponse:
-    component: Literal["AudienceCard", "DisclosureDecision"]
-    component = "DisclosureDecision" if decision.action == "allow" else "AudienceCard"
-
-    source = _source_candidate(decision, venue, candidates)
-    source_audience = resolve_users(source.source_audience if source else set())
-
-    if component == "AudienceCard":
+    audience: dict[str, Any] | None = None
+    if decision.action in ("broker", "redact"):
+        source = _source_candidate(decision, venue, candidates)
         owner_id = decision.broker_owner_id or (source.author_id if source else None)
-        owner_name = resolve_users([owner_id])[0]["name"] if owner_id else None
-        props: dict[str, Any] = {
-            "sourceAudience": source_audience,
+        audience = {
+            "sourceAudience": resolve_users(source.source_audience if source else set()),
             "venueAudience": resolve_users(venue.audience),
-            "ownerName": owner_name,
+            "ownerName": resolve_users([owner_id])[0]["name"] if owner_id else "",
             "status": decision.action,  # "broker" | "redact"
         }
-    else:
-        props = {
-            "action": decision.action,
-            "reason": decision.reason,
-            "answer": decision.answer,
-            "sourceAudience": source_audience,
-        }
+
+    props: dict[str, Any] = {
+        "action": decision.action,
+        "reason": decision.reason,
+        "answer": decision.answer,
+        "redactedAnswer": decision.redacted_answer,
+        "audience": audience,
+    }
 
     return DecideResponse(
-        action=decision.action, reason=decision.reason, component=component, props=props
+        action=decision.action,
+        reason=decision.reason,
+        component="DisclosureDecision",
+        props=props,
     )
 
 
