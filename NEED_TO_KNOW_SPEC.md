@@ -16,7 +16,7 @@ Read this whole file before writing code.
 4. **Contracts in §4 are frozen.** Three people code against them in parallel. Do not change a field name without saying so loudly.
 5. **Every module gets its acceptance test from §6.** A module is not done until its test passes.
 6. **No feature not listed here.** See §9 for the explicit do-not-build list.
-7. Python 3.12. Type hints everywhere. `ruff`-clean if it's free, ignore it if it isn't.
+7. Python 3.12 for the policy service; Node 22 + TypeScript for the CopilotKit Channel. Type hints everywhere. `ruff`-clean if it's free, ignore it if it isn't.
 
 ---
 
@@ -31,6 +31,22 @@ Every human-in-the-loop agent asks *the user* to approve. This one asks a person
 Every other Slack agent answers *"what is true?"*. This one answers *"what is sayable here, in front of these people?"*
 
 That is a different function with two extra inputs — **venue** and **audience** — and it is why the environment is load-bearing. A chat window has one user, so the question cannot be asked there at all.
+
+### Product architecture — CopilotKit is the Slack UI layer
+
+We use CopilotKit **Channels** and its constrained generative UI to make that audience visible in Slack. This does **not** turn the project into a TypeScript rewrite or a web app:
+
+```
+Slack → CopilotKit Channels runner (TypeScript) → Python policy service
+                                            ↘ native Slack Block Kit
+```
+
+- Python remains the source of truth for retrieval, audience resolution, hard/soft gates, and brokering.
+- The long-running TypeScript Channels runner owns Slack ingress/delivery and turns approved UI components into native Block Kit.
+- There is no React, Next.js, or browser frontend. Slack is the frontend.
+- "Generative UI" is constrained: the agent may select only registered components with validated, JSON-serializable props. It may never generate arbitrary JSX, policy decisions, or raw Slack payloads.
+
+The three approved components are `AudienceCard`, `DisclosureDecision`, and `ConsentCard`. They make the system's decision legible; they do not make it.
 
 ### Known prior art — this shapes the whole design
 
@@ -63,26 +79,28 @@ On top of the floor sits a **soft gate**: one structured LLM call that judges no
 ### Install these. Do not reimplement them.
 
 ```bash
-pip install slack-bolt openai pydantic python-dotenv matplotlib python-telegram-bot pyyaml
+pip install openai pydantic python-dotenv matplotlib python-telegram-bot pyyaml
+npm install --save-exact @copilotkit/channels@0.6.1 @copilotkit/runtime@1.65.0
+npm install -D typescript tsx @types/node
 ```
 
 | Need | Use | Never write by hand |
 |---|---|---|
-| Slack connection | `slack-bolt` **Socket Mode** | webhook server, ngrok, signature verification |
-| Slack Web API | `app.client` (the bundled `slack_sdk` WebClient) | raw HTTP calls to slack.com |
+| Slack connection and delivery | CopilotKit Channels long-running runner | a second Slack event handler, webhooks, ngrok |
+| Native Slack UI | Channels JSX → Block Kit | handwritten Block Kit payloads |
 | Structured LLM output | OpenAI SDK's Pydantic parse helper | JSON-in-prompt + regex parsing, retry loops |
 | Search | `sqlite3` + **FTS5** (stdlib) | vector DB, embeddings, custom ranking |
 | Config | `python-dotenv` | bespoke config loader |
 | Telegram (Phase 2) | `python-telegram-bot` inline keyboards | raw Bot API calls |
 | Chart | `matplotlib` | anything else |
 
-### Starting points worth reading before writing `app.py`
+### Starting points worth reading before writing the Channel runner
 
-- `slack-samples/bolt-python-starter-agent`
-- `slack-samples/bolt-python-assistant-template`
-- Slack docs: "Adding agent features with Bolt for Python"
+- CopilotKit: "Connect and run your agent in Slack"
+- CopilotKit: "Rich messages and components"
+- CopilotKit: "Interactive messages and approvals"
 
-Lift their event-wiring and Socket Mode boilerplate. Our novelty is in `policy.py`, nowhere else.
+Use their Channel setup; do not simultaneously build a Bolt/Socket Mode bot. Our novelty is in `policy.py`, nowhere else.
 
 ---
 
@@ -124,15 +142,15 @@ class Decision(BaseModel):
     blocked_candidate_ids: list[str] = []
 ```
 
-Put these in `types.py`. Everything imports from there.
+Put these in `contracts.py`. Everything imports from there.
 
 ---
 
 ## 5. Repo layout
 
 ```
-needtoknow/
-  types.py               # §4 contracts. Write this first.
+context_window/
+  contracts.py           # §4 contracts. Write this first.
   config.py              # env loading
   seed/
     workspace.py         # generates the fictional company as data
@@ -141,12 +159,12 @@ needtoknow/
   policy.py              # hard gate · soft gate · Decision                 [P1]
   broker.py              # ask the owner, surface-agnostic                  [P1]
   principals.py          # who the agent is acting for (Phase 3b)           [P1]
-  surfaces/
-    slack_broker.py      # Block Kit approve / deny / constraint            [P1]
-    slack_card.py        # the audience card                                [P3]
-    identities.py        # per-principal bot identity                       [P2]
+  policy_api.py          # small AG-UI/HTTP boundary over the Python engine [P1]
+  channel/
+    runner.ts            # CopilotKit Channels listener + Python connection [P2]
+    components.tsx       # AudienceCard, DisclosureDecision, ConsentCard    [P3]
+    package.json         # pinned Channels runtime                           [P2]
     telegram.py          # Phase 2                                          [P1]
-  app.py                 # Bolt listener, Socket Mode                       [P2]
   eval/
     probes.yaml          # 40 probes + 8 injection probes                   [P3]
     run_eval.py          # 4 arms → leak rate → chart.png                   [P3]
@@ -161,32 +179,33 @@ needtoknow/
 Three lanes. Each has a hard interface, a done-test, and an explicit "not your job" — the last one matters most.
 
 ### P1 — Naman · the decision engine
-`types.py` · `policy.py` · `broker.py` · `principals.py` · `surfaces/slack_broker.py` · `surfaces/telegram.py`
+`contracts.py` · `policy.py` · `broker.py` · `principals.py` · `policy_api.py` · `surfaces/telegram.py`
 
 Owns the hard gate, the soft gate, the broker, and Phase 3b. This is the differentiator and the hardest reasoning in the build.
 
-- **Write `types.py` in the first 15 minutes and announce it.** Both other lanes are blocked until it exists. Nothing else you do today is as time-critical.
+- **Write `contracts.py` in the first 15 minutes and announce it.** Both other lanes are blocked until it exists. Nothing else you do today is as time-critical.
 - Then `hard_gate` against fake Candidates — the entire floor is testable before P2 has Slack working.
-- **Not your job:** retrieval quality, the audience card, the eval, the video. If the wrong candidate arrives, that is P2's bug.
+- Expose one minimal AG-UI or HTTP endpoint around the completed policy/broker contract. Its input and output are validated Pydantic models; it does not contain Slack or JSX code.
+- **Not your job:** retrieval quality, the Channel runner, the UI components, the eval, the video. If the wrong candidate arrives, that is P2's bug.
 
-### P2 — Slack plumbing
-`app.py` · `store.py` · `seed/seed_slack.py` · `surfaces/identities.py`
+### P2 — CopilotKit + Slack plumbing
+`channel/runner.ts` · `channel/package.json` · `store.py` · `seed/seed_slack.py`
 
-- **First 25 minutes:** Slack app, Socket Mode, all scopes, bot invited to all five conversations, and **one verified `conversations_history` read**. Do not write retrieval code before that read succeeds.
+- **First 25 minutes:** create the CopilotKit Channel, connect Slack, start the long-running TypeScript runner, and verify one real Slack message reaches it and receives a reply. Do not write retrieval code before that succeeds.
 - Then ingest, audience resolution (cache `conversations_members` once per channel), FTS5.
-- Then `chat:write.customize` identities for Phase 3b.
-- **Not your job:** deciding anything. You report who could see what; you never judge.
+- Then connect the runner to P1's Python endpoint. A Channel turn must produce a typed decision before any component renders.
+- **Not your job:** deciding anything or building UI components. You report who could see what; you never judge.
 - You will likely finish first. When you do, you are the floating pair for whoever is behind at 13:15.
 
 ### P3 — credibility and the film
-`seed/workspace.py` · `surfaces/slack_card.py` · `eval/` · `README.md` · the video
+`seed/workspace.py` · `channel/components.tsx` · `eval/` · `README.md` · the video
 
 - **Pre-work at home:** `seed/workspace.py`. No API needed. Both other lanes depend on this data existing.
 - **Unblocked from minute one:** write `probes.yaml` against a stub policy that always allows.
-- The audience card (§6.3a) — thirty minutes, and it is what makes the demo visual rather than textual.
+- The three constrained generative-UI components (§6.3a) — thirty minutes, and they are what make the demo visual rather than textual.
 - Injection probes (§6.7) — fifteen minutes, highest return per minute in this spec.
 - From 14:15 you own the video, and you are the only one who touches it.
-- **Not your job:** the policy logic. Score it, don't fix it.
+- **Not your job:** the policy logic or Channel transport. Score it, don't fix it.
 
 ---
 
@@ -248,13 +267,13 @@ The third fixture failing means the project has no differentiator. Treat it as a
 
 ---
 
-### 6.3 `surfaces/slack_card.py` (P3) and `surfaces/slack_broker.py` (P1)
+### 6.3 `channel/components.tsx` (P3) and `channel/runner.ts` (P2)
 
-Two jobs.
+CopilotKit Channels owns the Slack presentation layer. Components use Channels JSX and are registered with the runner; Slack receives the resulting native Block Kit. P3 writes components only. P2 owns registration, event delivery, and callbacks. Neither owns policy.
 
-**(a) The audience card.** This is what turns the project from "produces text" into "controls an interface". Not polish — Phase 1.
+**(a) `AudienceCard`.** This is what turns the project from "produces text" into "controls an interface". Not polish — Phase 1.
 
-Post a Block Kit message showing both audience sets as avatar rows with the difference called out:
+Render both audience sets as avatar rows with the difference called out:
 
 ```
 Could see the source   [5 avatars]                5 people
@@ -264,17 +283,22 @@ Can see this channel   [12 avatars]              12 people
 Holding. Asking Dana, who said it first.
 ```
 
-- Avatar URLs come from `users_info(user=...)` → `profile.image_24`. Cache them.
-- A Block Kit `context` block takes **at most 10 elements**. With more than 9 users, show 9 avatars plus a "+N" text element. Handle this or the card silently fails to render.
+- Props must be JSON-serializable and validated: `sourceAudience`, `venueAudience`, `ownerName`, `status`. Do not pass live Slack objects into JSX.
+- Avatar URLs come from the workspace identity lookup. Cache them.
+- A Slack `context` block takes **at most 10 elements**. With more than 9 users, show 9 avatars plus a "+N" text element. Handle this or the card silently fails to render.
 
-**(b) The approve/deny DM.**
+**(b) `DisclosureDecision`.** Render the typed result of P1's policy: `allow`, `redact`, or `broker`, with the one-line policy reason. It may choose `AudienceCard` for a held disclosure. It must never infer or alter `Decision.action`.
 
-- `chat_postMessage` to the owner's DM with two buttons.
-- Each button's `value` carries a JSON string with `channel_id`, `thread_ts`, `candidate_id`, `decision`.
-- On approve, post into the **original thread** (`channel_id` + `thread_ts`), not the DM. Attribute it: "Shared by <@DANA>, just now."
+**(c) `ConsentCard`.** The broker's owner-facing approval UI.
+
+- Render it in the owner's DM with Approve and Deny buttons.
+- Each callback carries only JSON-serializable identifiers: `channel_id`, `thread_ts`, `candidate_id`, `decision`.
+- On approve, the runner posts into the **original thread** (`channel_id` + `thread_ts`), not the DM. Attribute it: "Shared by <@DANA>, just now."
 - Support a third outcome: `approved_with_constraint`. A free-text constraint from the owner is applied to the text we post. This matters for Phase 3, where the constraint arrives by voice.
 
-**Acceptance test:** clicking Approve in a DM lands a correctly attributed message in the original channel thread.
+**Acceptance test:** a real Slack question produces `DisclosureDecision`; a brokered result produces `AudienceCard` and `ConsentCard`; clicking Approve lands a correctly attributed message in the original channel thread.
+
+**Non-negotiable guardrail:** Components are selected from this fixed registry. The model cannot emit arbitrary JSX, raw Block Kit, callback code, or a new component name. Generative UI explains a decision; `policy.py` makes it.
 
 ---
 
@@ -455,34 +479,33 @@ If that is done at home, Phase 3c on the day is code only: swap `broker()`'s tra
 
 **No in-day spike, no dedicated person, no 12:30 kill.** If the pre-work didn't happen, 3c simply doesn't exist today — and nothing is lost, because the ambition already lives in 3b. Tether to a phone hotspot for the recording; venue wifi and realtime audio do not mix.
 
-### Phase 4 — only after the 14:30 freeze
-Attach Ambiguous over MCP (`https://app.ambiguous.ai/mcp`, bearer token) and run the *same* policy against a second workspace with a different membership model. Keep it in its own module so it cannot break the main path.
+### Phase 4 — only after the 14:30 freeze. Owner: P2 if free.
+Attach Ambiguous over MCP (`https://app.ambiguous.ai/mcp`, bearer token) and run the *same* Python policy against a second workspace with a different membership model. Keep the adapter in its own module so it cannot break the main path. It is not part of the CopilotKit runner.
 
 ---
 
 ## 8. Setup
 
-**Bot token scopes**
+**CopilotKit Channel credentials**
 
 ```
-app_mentions:read  channels:history  channels:read
-groups:history     groups:read       im:history
-im:write           users:read        chat:write
+CHANNEL_CODE=...
+INTELLIGENCE_API_KEY=...
 ```
 
-**App-level token (Socket Mode):** `connections:write`
+Configure Slack through the CopilotKit Channel setup, then run the TypeScript listener on Node 22+. Do not create a parallel Bolt/Socket Mode app.
 
 **.env**
 
 ```
-SLACK_BOT_TOKEN=xoxb-...
-SLACK_APP_TOKEN=xapp-...
+CHANNEL_CODE=...
+INTELLIGENCE_API_KEY=...
 OPENAI_API_KEY=sk-...
 TELEGRAM_BOT_TOKEN=...        # phase 2
 AMBIGUOUS_API_KEY=ak-...      # phase 4
 ```
 
-> **The bot only sees channels it has been invited to.** Invite it to all five at seed time and verify with one successful `conversations_history` read *before* writing retrieval code. This is the most common way this build dies at 13:00.
+> **Verify the actual Channel before writing retrieval code.** Send one Slack message, confirm it reaches the TypeScript runner, invokes the Python endpoint, and returns a native Slack reply. This is the most common integration failure; prove the whole path early.
 
 ---
 
@@ -490,7 +513,7 @@ AMBIGUOUS_API_KEY=ak-...      # phase 4
 
 - Any auth or user management. Slack is the identity system.
 - A vector database, embeddings, or a reranker. 120 messages; FTS5 is plenty and is debuggable.
-- A web UI, dashboard, or admin panel. Slack is the UI.
+- A browser web UI, dashboard, or admin panel. Slack is the UI; CopilotKit renders the approved components there.
 - A message queue, Celery, or a scheduler.
 - An ORM or migrations. Raw `sqlite3` is correct here.
 - Docker. We run it on a laptop.
@@ -504,6 +527,7 @@ AMBIGUOUS_API_KEY=ak-...      # phase 4
 
 - [ ] `@needtoknow why did the launch date move?` gives different, correct answers in `#general`, `#engineering` and `#leadership`
 - [ ] A blocked answer renders the audience card with the difference visible
+- [ ] The CopilotKit runner renders only the registered `AudienceCard`, `DisclosureDecision`, and `ConsentCard` components as native Slack UI
 - [ ] The confidential-DM case brokers even though the hard gate passes
 - [ ] Approve in a DM posts an attributed message into the original thread
 - [ ] An injection attempt in `#general` changes nothing, and the under-attack arm matches the clean arm
