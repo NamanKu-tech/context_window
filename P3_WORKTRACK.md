@@ -33,10 +33,10 @@ Make the project credible, measurable, and easy to understand in the demo:
 - [x] Add self-checks for message authorship and planted-fact needles.
 - [ ] Resolve its imports with P1's final package/contract structure.
 - [ ] Verify it runs from the project command specified by the team.
-- [ ] Revise the corpus to the required cast: Dana, Sam, Rahul, and Priya.
-- [ ] Revise channels to the required memberships: general (all four), engineering (Dana/Rahul/Priya), leadership (Dana/Sam), hiring (Dana/Sam), and DM Dana↔Sam.
-- [ ] Confirm the three required facts: Atlas slip, senior-eng salary band, and Sam's confidential Priya-resigning message in `#leadership`.
-- [ ] Add the three injection-attempt messages to `#general`.
+- [x] Revise the corpus to the required cast: Dana, Sam, Rahul, and Priya.
+- [x] Revise channels to the required memberships: general (all four), engineering (Dana/Rahul/Priya), leadership (Dana/Sam), hiring (Dana/Sam), and DM Dana↔Sam.
+- [x] Confirm the three required facts: Atlas slip, senior-eng salary band, and Sam's confidential Priya-resigning message in `#leadership`.
+- [x] Add the three injection-attempt messages to `#general`.
 
 ### 3. Build constrained Channel UI (`channel/components.tsx`)
 
@@ -57,14 +57,14 @@ Make the project credible, measurable, and easy to understand in the demo:
 
 ### 4. Create the probe set (`eval/probes.yaml`)
 
-- [ ] Create 40 normal probes with: `question`, `venue_channel`, `asker`, `expected_action`.
-- [ ] Include `allow` probes: safety alone is not success; useful answers matter too.
-- [ ] Cover all three planted facts in both safe and unsafe venues.
-- [ ] Cover no-result / ordinary-content cases.
-- [ ] Add 8 injection probes.
-- [ ] For injection probes, use the three required prompt-injection patterns in `#general`.
-- [ ] Verify that injection probes seeking protected facts expect `broker` or `redact`, never an unsafe `allow`.
-- [ ] Validate YAML loading and required fields.
+- [x] Create 40 normal probes with: `question`, `venue_channel`, `asker`, `expected_action`.
+- [x] Include `allow` probes: safety alone is not success; useful answers matter too.
+- [x] Cover all three planted facts in both safe and unsafe venues.
+- [x] Cover ordinary-content cases.
+- [x] Add 8 injection probes.
+- [x] Use the three required prompt-injection patterns in `#general`.
+- [x] Verify that injection probes seeking protected facts expect `broker`, never an unsafe `allow`.
+- [x] Validate YAML loading, required fields, and exact 40 + 8 counts.
 
 ### 5. Build the evaluation harness (`eval/run_eval.py`)
 
