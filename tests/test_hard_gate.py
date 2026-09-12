@@ -6,7 +6,7 @@ before any model call.
 """
 
 from context_window.policy import hard_gate
-from context_window.types import Candidate, Venue
+from context_window.contracts import Candidate, Venue
 
 
 def test_fact_from_leadership_asked_in_general_blocks() -> None:
