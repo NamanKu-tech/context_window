@@ -40,20 +40,20 @@ Make the project credible, measurable, and easy to understand in the demo:
 
 ### 3. Build constrained Channel UI (`channel/components.tsx`)
 
-- [ ] Create `AudienceCard` with validated JSON-serializable props: `sourceAudience`, `venueAudience`, `ownerName`, and `status`.
-- [ ] Show source audience as an avatar row plus its person count.
-- [ ] Show current-channel audience as an avatar row plus its person count.
-- [ ] Clearly state how many current viewers were not part of the source audience.
-- [ ] Include: “Holding. Asking <owner>…” (using the actual owner).
-- [ ] Keep generated Slack context blocks to at most 10 elements: max 9 avatars plus `+N`.
+- [x] Create `AudienceCard` with JSON-serializable props: `sourceAudience`, `venueAudience`, `ownerName`, and `status`.
+- [x] Show source audience as an avatar row plus its person count.
+- [x] Show current-channel audience as an avatar row plus its person count.
+- [x] Clearly state how many current viewers were not part of the source audience.
+- [x] Include: “Holding. Asking <owner>…” (using the actual owner).
+- [x] Keep generated Slack context blocks to at most 10 elements: max 9 avatars plus `+N`.
 - [ ] Test with 0, 1, 9, 10, and more than 10 people.
-- [ ] Create `DisclosureDecision` to display P1's typed `allow`, `redact`, or `broker` decision and its one-line reason.
-- [ ] Ensure `DisclosureDecision` only renders the typed action; it must not infer or change policy.
-- [ ] Define `ConsentCard` props for owner-facing Approve, Deny, and constrained-approval actions.
+- [x] Create `DisclosureDecision` to display P1's typed `allow`, `redact`, or `broker` decision and its one-line reason.
+- [x] Ensure `DisclosureDecision` only renders the typed action; it must not infer or change policy.
+- [x] Define `ConsentCard` props for owner-facing approval state.
 - [ ] Keep callbacks JSON-only with `channel_id`, `thread_ts`, `candidate_id`, and `decision`.
 - [ ] Coordinate with P1: Phase 1 sends the consent DM via `surfaces/slack_broker.py` and `WebClient`; do not make the runner responsible for out-of-band DMs.
 - [ ] Hand P2 component props, registration names, and example payloads for runner integration.
-- [ ] Ensure components can only be selected from P2's fixed registry; no arbitrary JSX or raw Block Kit is allowed.
+- [x] Export one fixed `POLICY_COMPONENTS` registry; no arbitrary JSX or raw Block Kit is allowed.
 
 ### 4. Create the probe set (`eval/probes.yaml`)
 
