@@ -36,6 +36,7 @@ CONFIDENTIAL_MARKERS: tuple[str, ...] = (
     "off the record",
     "please hold it here",
     "hold this for now",
+    "top secret",
 )
 
 #: Curly (typographic) apostrophes/quotes normalised to their straight ASCII

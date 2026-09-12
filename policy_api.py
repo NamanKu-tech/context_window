@@ -37,13 +37,28 @@ from context_window.contracts import Candidate, Decision, Venue
 from context_window.policy import decide, hard_gate
 
 try:
-    from context_window.store import build_venue, search  # P2's module
+    from context_window.store import (
+        build_venue,
+        ingest,
+        resolve_managed_turn_channel,
+        resolve_users as resolve_slack_users,
+        search,
+    )
 except ImportError:
     build_venue = None
+    ingest = None
+    resolve_managed_turn_channel = None
+    resolve_slack_users = None
     search = None
 
 app = FastAPI()
-_user_cache: dict[str, dict[str, str]] = {}
+
+_SEED_DISPLAY_NAMES = {
+    "dana": "Naman",
+    "sam": "Sarthak Srivastava",
+    "rahul": "Jeffrey Hamlin",
+    "priya": "Kumar Naman",
+}
 
 
 class DecideRequest(BaseModel):
@@ -68,32 +83,21 @@ def resolve_users(ids: set[str] | list[str]) -> list[dict[str, str]]:
     process. If Slack profile lookup is temporarily unavailable, retain a
     safe ID fallback rather than failing a disclosure decision.
     """
-    from context_window.slack_client import get_client as get_slack_client
+    seed_ids = [uid for uid in ids if uid in _SEED_DISPLAY_NAMES]
+    slack_ids = [uid for uid in ids if uid not in _SEED_DISPLAY_NAMES]
+    resolved = [
+        {"id": uid, "name": _SEED_DISPLAY_NAMES[uid], "avatarUrl": ""}
+        for uid in sorted(seed_ids)
+    ]
+    if resolve_slack_users is not None and slack_ids:
+        from context_window.slack_client import get_slack_client
 
-    client = None
-    users: list[dict[str, str]] = []
-    for uid in sorted(ids):
-        if uid not in _user_cache:
-            try:
-                client = client or get_slack_client()
-                user = client.users_info(user=uid).data["user"]
-                profile = user.get("profile") or {}
-                name = (
-                    profile.get("display_name")
-                    or profile.get("real_name")
-                    or user.get("real_name")
-                    or user.get("name")
-                    or uid
-                )
-                _user_cache[uid] = {
-                    "id": uid,
-                    "name": str(name),
-                    "avatarUrl": str(profile.get("image_48") or profile.get("image_72") or ""),
-                }
-            except Exception:  # Profile decoration must never block policy output.
-                _user_cache[uid] = {"id": uid, "name": uid, "avatarUrl": ""}
-        users.append(_user_cache[uid])
-    return users
+        try:
+            return resolved + resolve_slack_users(get_slack_client(), slack_ids)
+        except Exception:
+            # A display lookup must never change a disclosure decision.
+            pass
+    return resolved + [{"id": uid, "name": uid.capitalize(), "avatarUrl": ""} for uid in sorted(slack_ids)]
 
 
 # STUB — owned by P2, delete on integration. Fixed cast + channels from
@@ -157,12 +161,25 @@ def _stub_venue_and_candidates(req: DecideRequest) -> tuple[Venue, list[Candidat
 
 
 def _resolve(req: DecideRequest) -> tuple[Venue, list[Candidate]]:
-    if build_venue is not None and search is not None:
-        # Real path, once P2 ships store.py + slack_client.py. Not
-        # exercised until then.
+    if (
+        build_venue is not None
+        and ingest is not None
+        and resolve_managed_turn_channel is not None
+        and search is not None
+    ):
+        # Refresh before retrieval: Slack messages may have arrived since the
+        # previous turn, and a decision must never silently ignore a newly
+        # posted confidential source.
         from context_window.slack_client import get_slack_client
 
-        venue = build_venue(get_slack_client(), req.channel_id)
+        client = get_slack_client()
+        ingest(client)
+        channel_id = req.channel_id
+        if not channel_id.startswith(("C", "D", "G")):
+            channel_id = resolve_managed_turn_channel(client, req.user_id, req.text)
+            if channel_id is None:
+                raise RuntimeError("Could not resolve managed Slack turn to a channel")
+        venue = build_venue(client, channel_id)
         candidates = search(req.text)
         return venue, candidates
     return _stub_venue_and_candidates(req)

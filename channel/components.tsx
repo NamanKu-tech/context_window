@@ -81,17 +81,17 @@ export function AudienceCard(props: AudienceCardProps) {
     newlyExposed.length === 1 ? "1 person was never part of this" : newlyExposed.length + " people were never part of this";
 
   return (
-    <Message>
-      <Header>Disclosure held</Header>
+    <Message accent="#EAB308" fallbackText={"Disclosure held pending the fact owner's approval."}>
+      <Header>🔒 Disclosure held</Header>
       <AvatarRow audience={props.sourceAudience} label="Could see the source" />
       <AvatarRow audience={props.venueAudience} label="Can see this channel" />
       <Fields>
-        <Field>{differenceLabel}</Field>
-        <Field>{"Owner: " + props.ownerName}</Field>
+        <Field label="Audience difference">{differenceLabel}</Field>
+        <Field label="Fact owner">{props.ownerName}</Field>
       </Fields>
       <Divider />
-      <Section>{"Holding. Asking " + props.ownerName + ", who said it first."}</Section>
-      <Context>{props.status}</Context>
+      <Section>{"Holding it until " + props.ownerName + " decides."}</Section>
+      <Context>{"● " + props.status.toUpperCase()}</Context>
     </Message>
   );
 }
@@ -101,19 +101,41 @@ export function AudienceCard(props: AudienceCardProps) {
  * policy: an unknown action is rejected by TypeScript and the Python boundary.
  */
 export function DisclosureDecision(props: DisclosureDecisionProps) {
+  const hasHeldFact = props.action === "broker" && Boolean(props.audience?.ownerName);
   const body =
     props.action === "allow"
       ? props.answer
       : props.action === "redact"
         ? props.redactedAnswer
-        : "This disclosure needs the fact owner's approval.";
+        : hasHeldFact
+          ? "This disclosure needs the fact owner's approval."
+          : props.reason;
 
   return (
     <>
-      <Message>
-        <Header>{props.action === "broker" ? "Permission needed" : "Disclosure decision"}</Header>
+      <Message
+        accent={props.action === "broker" ? "#EAB308" : props.action === "allow" ? "#16A34A" : "#DC2626"}
+        fallbackText={props.reason}
+      >
+        <Header>
+          {props.action === "broker"
+            ? hasHeldFact
+              ? "🔐 Permission needed"
+              : "🔎 No matching information"
+            : props.action === "allow"
+              ? "✅ Safe to share"
+              : "🔒 Disclosure held"}
+        </Header>
         <Section>{body ?? props.reason}</Section>
         <Context>{props.reason}</Context>
+        {props.action === "allow" ? (
+          <>
+            <Fields>
+              <Field label="Status">Verified for this audience</Field>
+              <Field label="Scope">Current channel</Field>
+            </Fields>
+          </>
+        ) : null}
       </Message>
       {props.action === "broker" && props.audience ? <AudienceCard {...props.audience} /> : null}
     </>

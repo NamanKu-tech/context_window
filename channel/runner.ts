@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { appendFile } from "node:fs/promises";
 
 import { createChannel } from "@copilotkit/channels";
 import {
@@ -16,6 +17,12 @@ function required(name: string): string {
   return value;
 }
 
+const RUNTIME_LOG = "/private/tmp/need-to-know-runtime.log";
+
+function logRuntime(event: string): Promise<void> {
+  return appendFile(RUNTIME_LOG, `${new Date().toISOString()} ${event}\n`).catch(() => undefined);
+}
+
 type SlackTurnContext = {
   channelId: string;
   threadTs: string;
@@ -26,10 +33,16 @@ type PolicyResponse = {
   props: DisclosureDecisionProps;
 };
 
-/** Direct Slack turns are keyed as `<channel id>::<root thread timestamp>`. */
+/** Direct Slack turns are keyed as `<channel id>::<root thread timestamp>`.
+ * Managed Intelligence supplies an opaque UUID; policy_api resolves that to
+ * its real Slack channel before building the venue. */
 function parseSlackTurnContext(conversationKey: string): SlackTurnContext | null {
   const separator = conversationKey.indexOf("::");
-  if (separator === -1) return null;
+  if (separator === -1) {
+    return /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(conversationKey)
+      ? { channelId: conversationKey, threadTs: conversationKey }
+      : null;
+  }
 
   const channelId = conversationKey.slice(0, separator);
   const threadTs = conversationKey.slice(separator + 2);
@@ -81,6 +94,9 @@ const channel = createChannel({
 
 channel.onMention(async ({ thread, message }) => {
   const context = parseSlackTurnContext(thread.conversationKey);
+  await logRuntime(
+    `mention platform=${message.platform} context=${context ? "valid" : "invalid"} key=${thread.conversationKey}`,
+  );
   if (message.platform !== "slack" || context === null) {
     await thread.post("I could not safely identify this Slack conversation.");
     return;
@@ -88,10 +104,12 @@ channel.onMention(async ({ thread, message }) => {
 
   try {
     const decision = await requestDecision(context, message.actor.id, message.text);
+    await logRuntime(`policy action=${decision.props.action}`);
     await thread.post(DisclosureDecision(decision.props));
   } catch (error) {
     const detail = error instanceof Error ? error.message : "unknown error";
     console.error(`Policy request failed: ${detail}`);
+    await logRuntime(`policy error=${detail}`);
     await thread.post("Need To Know is temporarily unavailable. Please try again shortly.");
   }
 });
@@ -137,5 +155,6 @@ if (status.overall === "error" || status.overall === "stopped") {
 
 const port = Number(process.env.PORT ?? 3000);
 server.listen(port, () => {
+  void logRuntime("runner online build=policy-ui-v3");
   console.log(`Slack Channel online; lifecycle server listening on :${port}`);
 });
