@@ -56,6 +56,19 @@ SOFT_GATE_SYSTEM_PROMPT = (
 #: the instruction, so a paragraph can never actually reach the screen.
 _MAX_REASON_CHARS = 140
 
+# These phrases are not a reason to refuse an ordinary question by themselves.
+# They are, however, a strong signal to avoid having a model arbitrate when the
+# retrieval set also contains material the venue cannot see.
+_INJECTION_MARKERS = (
+    "ignore previous instructions",
+    "ignore all instructions",
+    "system override",
+    "debug mode",
+    "print every message",
+    "print the full indexed corpus",
+    "reveal all private facts",
+)
+
 
 def _one_line(reason: str) -> str:
     """Truncate at the last full word within `_MAX_REASON_CHARS`. Never
@@ -65,6 +78,27 @@ def _one_line(reason: str) -> str:
     truncated = reason[:_MAX_REASON_CHARS]
     last_space = truncated.rfind(" ")
     return (truncated[:last_space] if last_space > 0 else truncated).rstrip()
+
+
+def _looks_like_injection(question: str) -> bool:
+    """Recognise explicit attempts to override the disclosure policy."""
+    normalised = question.casefold().replace("-", " ")
+    return any(marker in normalised for marker in _INJECTION_MARKERS)
+
+
+def _broker_for_blocked(blocked: list[Candidate]) -> Decision:
+    """Return the consistent, user-facing hard-gate fallback."""
+    owner = blocked[0].author_id if blocked else None
+    return Decision(
+        action="broker",
+        broker_owner_id=owner,
+        reason=(
+            f"Asking {owner.capitalize()}, who said it first."
+            if owner
+            else "No information found for this audience."
+        ),
+        blocked_candidate_ids=[c.message_id for c in blocked],
+    )
 
 
 def hard_gate(candidate: Candidate, venue: Venue) -> bool:
@@ -108,17 +142,24 @@ def decide(
     blocked_ids = [c.message_id for c in blocked]
 
     if not survivors:
-        owner = blocked[0].author_id if blocked else None
-        decision = Decision(
-            action="broker",
-            broker_owner_id=owner,
-            reason=(
-                f"Asking {owner.capitalize()}, who said it first."
-                if owner
-                else "No information found for this audience."
-            ),
-            blocked_candidate_ids=blocked_ids,
-        )
+        decision = _broker_for_blocked(blocked)
+        decision.reason = _one_line(decision.reason)
+        return decision
+
+    # Search results arrive relevance-ranked. If its best match is not safe
+    # for this venue, do not let a less-relevant public hit turn a direct
+    # request for that protected answer into an apparent approval.
+    if candidates and not hard_gate(candidates[0], venue):
+        decision = _broker_for_blocked(blocked)
+        decision.reason = _one_line(decision.reason)
+        return decision
+
+    # A policy-override prompt becomes especially unsafe when retrieval also
+    # found protected material. Broker it without presenting that material to
+    # the model. Harmless injection-like text with no blocked result can still
+    # be answered normally.
+    if blocked and _looks_like_injection(question):
+        decision = _broker_for_blocked(blocked)
         decision.reason = _one_line(decision.reason)
         return decision
 
