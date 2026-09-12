@@ -5,7 +5,7 @@
 Make the project credible, measurable, and easy to understand in the demo:
 
 - A realistic seeded Slack workspace.
-- A visual audience card that makes a withheld answer legible.
+- Three constrained Slack UI components that make a decision and withheld answer legible.
 - An evaluation that proves both safety and usefulness, including under attack.
 - A README with only measured claims.
 - A short, clear demo video once Phase 1 is green.
@@ -36,17 +36,21 @@ Make the project credible, measurable, and easy to understand in the demo:
 - [ ] Confirm the corpus contains the three final, agreed demo facts.
 - [ ] Add the three injection-attempt messages to `#general`.
 
-### 3. Build the audience card (`surfaces/slack_card.py`)
+### 3. Build constrained Channel UI (`channel/components.tsx`)
 
-- [ ] Create a function that turns a blocked decision into Slack Block Kit blocks.
+- [ ] Create `AudienceCard` with validated JSON-serializable props: `sourceAudience`, `venueAudience`, `ownerName`, and `status`.
 - [ ] Show source audience as an avatar row plus its person count.
 - [ ] Show current-channel audience as an avatar row plus its person count.
 - [ ] Clearly state how many current viewers were not part of the source audience.
 - [ ] Include: “Holding. Asking <owner>…” (using the actual owner).
-- [ ] Fetch `profile.image_24` through Slack `users_info` and cache it.
-- [ ] Keep every Block Kit `context` block to at most 10 elements: max 9 avatars plus `+N`.
+- [ ] Keep generated Slack context blocks to at most 10 elements: max 9 avatars plus `+N`.
 - [ ] Test with 0, 1, 9, 10, and more than 10 people.
-- [ ] Hand P2 a small rendering interface and an example payload for app integration.
+- [ ] Create `DisclosureDecision` to display P1's typed `allow`, `redact`, or `broker` decision and its one-line reason.
+- [ ] Ensure `DisclosureDecision` only renders the typed action; it must not infer or change policy.
+- [ ] Create `ConsentCard` for owner-facing Approve, Deny, and constrained-approval actions.
+- [ ] Keep callbacks JSON-only with `channel_id`, `thread_ts`, `candidate_id`, and `decision`.
+- [ ] Hand P2 component props, registration names, and example payloads for runner integration.
+- [ ] Ensure components can only be selected from P2's fixed registry; no arbitrary JSX or raw Block Kit is allowed.
 
 ### 4. Create the probe set (`eval/probes.yaml`)
 
@@ -77,17 +81,17 @@ Make the project credible, measurable, and easy to understand in the demo:
 
 ### P1 dependencies
 
-- [ ] Resolve the root-level `types.py` name collision with Python's standard-library `types` module.
-- [ ] Choose and implement one package name consistently (`needtoknow` or `context_window`).
+- [x] Rename root `types.py` to `contracts.py` to avoid shadowing Python's standard-library module.
+- [ ] Finish the `context_window` package layout and update all imports consistently.
 - [ ] Provide the frozen contracts, including the confidentiality-marker helper used by the seed data.
 - [ ] Provide a runnable `policy.decide()` so the eval can exercise hard and soft arms.
 
 ### P2 dependencies
 
-- [ ] Confirm the bot can read channel history for every seeded conversation.
+- [ ] Confirm one real Slack message reaches the CopilotKit Channel runner and returns a reply.
 - [ ] Post the agreed seed corpus into Slack.
-- [ ] Provide real channel audience data to the card renderer.
-- [ ] Integrate the audience-card payload when the policy returns `broker`.
+- [ ] Provide real channel audience data and cached avatar URLs to the component props.
+- [ ] Register and render the three P3 components only after receiving P1's typed decision.
 
 ## README and demo video
 
@@ -111,12 +115,12 @@ Make the project credible, measurable, and easy to understand in the demo:
 ## Team decisions to resolve before final eval
 
 1. **Canonical dataset:** The present seed/README and §6.6 of the spec describe different casts, memberships, DM participants, and confidential facts. Pick one and align all files before locking probes.
-2. **Package/contracts:** Python cannot currently run from the repo root because `types.py` shadows the standard library. P1 must settle the package layout and frozen imports before P3 can execute the seed or eval path.
+2. **Package/contracts:** `types.py` has now been renamed to `contracts.py`, which fixes the standard-library collision. Python tests still cannot import `context_window`, so P1 must finish the package layout and frozen imports before P3 can execute the seed or eval path.
 
 ## Definition of done for P3
 
 - [ ] The seed corpus is canonical, validates, and is posted by P2.
-- [ ] Blocked answers display an audience card with the difference visible.
+- [ ] `AudienceCard`, `DisclosureDecision`, and `ConsentCard` render through the fixed Channel component registry.
 - [ ] The 40 normal probes and 8 injection probes run in the harness.
 - [ ] The output includes four arms, leak rate, usefulness rate, and `chart.png`.
 - [ ] The attack arm does not worsen leakage.
