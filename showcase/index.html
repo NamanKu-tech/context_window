@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Need to Know: an audience-aware Slack agent project showcase." />
+    <title>Need to Know — Audience-aware AI for Slack</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page-glow glow-one"></div><div class="page-glow glow-two"></div>
+    <header class="nav wrap">
+      <a class="brand" href="#top"><span class="brand-mark">N</span> need to know</a>
+      <nav><a href="#demo">Interactive demo</a><a href="#architecture">Architecture</a><a href="#results">Evaluation</a></nav>
+      <a class="nav-cta" href="../README.md">Project notes ↗</a>
+    </header>
+
+    <main id="top">
+      <section class="hero wrap">
+        <div class="hero-copy">
+          <p class="eyebrow"><span></span> Audience-aware AI for shared workspaces</p>
+          <h1>AI that knows<br />when <em>not</em> to tell.</h1>
+          <p class="lede">Need to Know is a Slack agent that evaluates both the answer and the audience. The same question can receive different, safe responses in different conversations.</p>
+          <div class="hero-actions"><a class="button primary" href="#demo">Try the simulated demo <b>↓</b></a><a class="button ghost" href="#architecture">See how it works</a></div>
+          <div class="hero-stats"><div><strong>2</strong><span>policy gates</span></div><div><strong>48</strong><span>offline probes</span></div><div><strong>0</strong><span>model calls for blocked facts</span></div></div>
+        </div>
+        <div class="hero-visual" aria-label="Audience safety illustration">
+          <div class="orbit orbit-a"></div><div class="orbit orbit-b"></div>
+          <div class="signal signal-1"># engineering</div><div class="signal signal-2"># leadership</div>
+          <div class="shield"><span>✦</span><small>AUDIENCE<br />CHECKED</small></div>
+          <div class="visual-card"><div class="tiny-person">D</div><div><b>Can I share this?</b><p>Checking who can see this reply.</p></div><i>✓</i></div>
+        </div>
+      </section>
+
+      <section class="problem wrap">
+        <div class="section-label">THE PROBLEM</div>
+        <h2>Most chatbots know the facts.<br /><span>They do not know the room.</span></h2>
+        <div class="problem-grid"><article><span class="number">01</span><h3>Shared spaces change risk</h3><p>A Slack answer is visible to everyone in a channel—not just the person asking. Source permissions alone do not prevent an assistant from repeating protected context elsewhere.</p></article><article><span class="number">02</span><h3>Truth is not enough</h3><p>A fact may be correct and technically accessible, yet still be inappropriate to repeat because it is confidential, time-sensitive, or meant to stay within a team.</p></article><article><span class="number">03</span><h3>Safety must precede generation</h3><p>Prompt instructions are not a security boundary. Need to Know removes audience-incompatible facts before they ever become model context.</p></article></div>
+      </section>
+
+      <section class="demo-section" id="demo">
+        <div class="wrap">
+          <div class="section-heading"><div><div class="section-label">SIMULATED INTERACTIVE DEMO</div><h2>Same question. Different room.</h2></div><p>This front-end simulation mirrors the project’s policy flow. It does not connect to a live Slack workspace.</p></div>
+          <div class="demo-shell">
+            <aside class="workspace-panel"><div class="workspace-name"><span class="workspace-logo">N</span><b>Northstar</b><button aria-label="Workspace menu">⌄</button></div><p class="sidebar-label">CHANNELS</p><div class="channel-list" role="tablist"><button class="channel active" data-venue="general"><span>#</span> general <i>4</i></button><button class="channel" data-venue="engineering"><span>#</span> engineering <i>3</i></button><button class="channel" data-venue="leadership"><span>#</span> leadership <i>2</i></button><button class="channel" data-venue="dm"><span>◉</span> dana · sam <i>2</i></button></div><div class="sidebar-note"><span>●</span> Demo workspace<br /><small>Simulated policy results</small></div></aside>
+            <div class="chat-panel"><div class="chat-top"><div><span class="channel-icon">#</span> <b id="venue-title">general</b><small id="venue-members">4 members</small></div><span class="private-badge">audience-aware</span></div><div class="messages" id="messages"><div class="date-pill">Today</div></div><div class="composer"><div class="question-picker"><button class="question active" data-question="atlas">When does Atlas launch?</button><button class="question" data-question="salary">What is the senior salary band?</button><button class="question" data-question="priya">Is Priya leaving?</button></div><div class="input-row"><span class="mention">@need-to-know</span><span id="typed-question">When does Atlas launch?</span><button id="ask-button" aria-label="Ask Need to Know">↑</button></div></div></div>
+            <aside class="decision-panel"><p class="sidebar-label">POLICY TRACE</p><div class="trace-empty" id="trace-empty"><span>⌁</span><p>Select a question and ask the agent to inspect its decision path.</p></div><div class="trace" id="trace" hidden><div class="trace-step"><span>1</span><div><b>Retrieve</b><p id="trace-source"></p></div></div><div class="trace-line"></div><div class="trace-step" id="hard-step"><span>2</span><div><b>Hard gate</b><p id="trace-hard"></p></div></div><div class="trace-line"></div><div class="trace-step" id="soft-step"><span>3</span><div><b>Soft gate</b><p id="trace-soft"></p></div></div><div class="trace-result" id="trace-result"></div></div></aside>
+          </div>
+        </div>
+      </section>
+
+      <section class="architecture wrap" id="architecture">
+        <div class="section-label">ARCHITECTURE</div><h2>Policy before language.</h2><p class="architecture-intro">The model never decides who is allowed to see a retrieved fact. Deterministic audience checks run first; contextual reasoning only sees candidates that already passed.</p>
+        <div class="flow"><div class="flow-node slack"><span>✦</span><b>Slack mention</b><small>A question in context</small></div><div class="flow-arrow">→</div><div class="flow-node retrieval"><span>⌕</span><b>FTS retrieval</b><small>Relevant messages</small></div><div class="flow-arrow">→</div><div class="flow-node hard"><span>⌁</span><b>Hard gate</b><small>Audience subset check</small></div><div class="flow-arrow">→</div><div class="flow-node soft"><span>◈</span><b>Soft gate</b><small>Contextual judgement</small></div><div class="flow-arrow">→</div><div class="flow-node decision"><span>✓</span><b>Decision</b><small>Allow or hold</small></div></div>
+        <div class="gate-cards"><article class="gate-card hard-card"><div class="gate-title"><span>01</span><h3>Hard gate</h3><em>deterministic</em></div><code>venue.audience ⊆ source.audience</code><p>If even one person in the current venue could not see the source, the fact is held before any model call.</p></article><article class="gate-card soft-card"><div class="gate-title"><span>02</span><h3>Soft gate</h3><em>structured AI decision</em></div><code>confidentiality · purpose · timing</code><p>Even technically visible facts can be held if context says “don’t spread”, “keep this here”, or similar.</p></article></div>
+      </section>
+
+      <section class="results-section" id="results"><div class="wrap results-wrap"><div><div class="section-label">OFFLINE EVALUATION</div><h2>Safety is measurable,<br />not just promised.</h2><p>We tested a fictional startup corpus with 40 normal probes and 8 prompt-injection probes. These are project evaluation results, not a general-purpose benchmark.</p><div class="legend"><span><i class="red"></i>Leak rate</span><span><i class="green"></i>Usefulness</span></div></div><div class="chart" aria-label="Evaluation comparison chart"><div class="chart-axis"><span>100%</span><span>50%</span><span>0%</span></div><div class="bar-groups"><div class="bar-group"><div class="bars"><i class="bar leak" style="height:100%"></i><i class="bar useful" style="height:96%"></i></div><b>Naive</b></div><div class="bar-group"><div class="bars"><i class="bar leak" style="height:75%"></i><i class="bar useful" style="height:96%"></i></div><b>Hard only</b></div><div class="bar-group featured"><div class="bars"><i class="bar leak" style="height:10%"></i><i class="bar useful" style="height:68%"></i></div><b>Hard + soft</b></div><div class="bar-group"><div class="bars"><i class="bar leak" style="height:0%"></i><i class="bar useful" style="height:29%"></i></div><b>Under attack</b></div></div></div></div></section>
+
+      <section class="build wrap"><div class="build-copy"><div class="section-label">BUILD DETAILS</div><h2>A practical stack<br />for a safety-first agent.</h2><p>Need to Know combines Slack’s real conversation context with a small, inspectable policy layer—not a giant new platform.</p></div><div class="stack"><span>Slack API</span><span>CopilotKit Channels</span><span>TypeScript</span><span>Python</span><span>FastAPI</span><span>SQLite FTS5</span><span>OpenRouter</span><span>Gemini</span><span>Pydantic</span></div></section>
+
+      <section class="closing wrap"><div><p class="eyebrow"><span></span> A safer interface for shared intelligence</p><h2>Context is part<br />of the answer.</h2></div><p>Need to Know explores what happens when an AI assistant treats the audience as a first-class part of every response.</p></section>
+    </main>
+    <footer class="wrap"><span>Need to Know · Project showcase</span><span>Built as an interactive case study</span></footer>
+    <script src="app.js"></script>
+  </body>
+</html>
